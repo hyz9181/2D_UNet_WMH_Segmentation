@@ -5,20 +5,21 @@ import torch.nn.functional as F
 #from torchsummary import summary
 
 class DoubleConv(nn.Module):
-    def __init__(self, in_channels, out_channels, mid_channels = None):
+    def __init__(self, in_channels, out_channels, mid_channels = False):
         super(DoubleConv, self).__init__()
-        if not mid_channels:
+        if(mid_channels == False):
             mid_channels = out_channels
-        self.double_conv = nn.Sequential(
-            nn.Conv2d(in_channels, mid_channels, kernel_size = 3, padding = 1, bias = False),
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, mid_channels, 3, 1, 1, bias=False),
             nn.BatchNorm2d(mid_channels),
-            nn.ReLU(inplace = True),
-            nn.Conv2d(mid_channels, out_channels, kernel_size = 3, padding = 1, bias = False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(mid_channels, out_channels, 3, 1, 1, bias=False),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace = True),
+            nn.ReLU(inplace=True),
         )
+
     def forward(self, x):
-        return self.double_conv(x)
+        return self.conv(x)
 
 class Down(nn.Module):
     def  __init__(self, in_channels, out_channels):
@@ -27,7 +28,7 @@ class Down(nn.Module):
             nn.MaxPool2d(kernel_size = 2),
             DoubleConv(in_channels, out_channels),
         )
-    def forward():
+    def forward(self, x):
         return self.down_sampling_conv(x)
 
 class Up(nn.Module):
@@ -42,7 +43,7 @@ class Up(nn.Module):
     def forward(self, x1, x2):
         x1 = self.up(x1)
         diffY = x2.size()[2] - x1.size()[2]
-        diffX = x2.size()[3] = x1.size()[3]
+        diffX = x2.size()[3] - x1.size()[3]
         x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2, diffY // 2, diffY - diffY // 2])
         x = torch.cat([x2, x1], dim = 1)
         return self.conv(x)
@@ -54,6 +55,7 @@ class OutConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
+
 class Unet(nn.Module):
     def __init__(self, n_channels, n_classes, bilinear = True):
         super(Unet, self).__init__()
@@ -83,35 +85,5 @@ class Unet(nn.Module):
         x = self.up2(x, x3)
         x = self.up3(x, x2)
         x = self.up4(x, x1)
-        logits = self.OutConv(x)
+        logits = self.outc(x)
         return logits
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-print("Using {} device".format(device))
-print(torch.cuda.current_device())
-
-model = Unet(3, 2).to(device)
-print(model)
-
-loss_fn = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-'''
-def train(dataloader, model, loss_fn, optimizer):
-    size = len(dataloader.dataset)
-    model.train()
-    for batch, (X, y) in enumerate(dataloader):
-        X, y = X.to(device), y.to(device)
-        print(X.shape)
-        print(y.shape)
-        # Compute prediction error
-        pred = model(X)
-        loss = loss_fn(pred, y)
-
-        # Backpropagation
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        if batch % 100 == 0:
-            loss, current = loss.item(), batch * len(X)
-            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")'''
